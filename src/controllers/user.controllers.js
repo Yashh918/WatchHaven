@@ -1,7 +1,7 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { apiError } from "../utils/apiError.js"
 import { User } from "../models/user.models.js"
-import { uploadOnCloudinary } from "../utils/cloudinary.js"
+import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js"
 import { apiResponse } from "../utils/apiResponse.js"
 import jwt from "jsonwebtoken"
 
@@ -49,13 +49,12 @@ const registerUser = asyncHandler(async (req, res) => {
     }
 
     const avatarLocalPath = req.files?.avatar[0]?.path
+
     // const coverImageLocalPath = req.files?.coverImage[0]?.path
     let coverImageLocalPath;
     if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
         coverImageLocalPath = req.files.coverImage[0].path
     }
-
-    // console.log(req.files);
 
     if (!avatarLocalPath) {
         throw new apiError(400, "Avatar file is required")
@@ -286,19 +285,27 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         throw new apiError(500, "Error while uploading avatar")
     }
 
-    const user = await User.findByIdAndUpdate(
-        req.user?._id,
-        {
-            $set: {
-                avatar: avatar.url
-            }
-        },
-        { new: true }
-    ).select("-password")
+    const user = await User.findById(req.user._id)
+
+    if (!user) {
+        throw new apiError(404, "User not found")
+    }
+
+    const oldAvatarUrl = user.avatar
+
+    user.avatar = avatar.url
+    await user.save({ validateBeforeSave: false })
+
+    if (oldAvatarUrl) {
+        const oldAvatarPublicId = oldAvatarUrl.split('/').pop().split('.')[0]
+        await deleteFromCloudinary(oldAvatarPublicId)
+    }
+
+    const updatedUser = await User.findById(req.user._id).select("-password")
 
     return res
         .status(200)
-        .json(new apiResponse(200, user, "Avatar updated successfully"))
+        .json(new apiResponse(200, updateUserAvatar, "Avatar updated successfully"))
 })
 
 const updateUserCoverImage = asyncHandler(async (req, res) => {
@@ -314,19 +321,23 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         throw new apiError(500, "Error while uploading cover image")
     }
 
-    const user = await User.findByIdAndUpdate(
-        req.user._id,
-        {
-            $set: {
-                coverImage: coverImage.url
-            }
-        },
-        { new: true }
-    ).select("-password")
+    const user = await User.findById(req.user._id)
+
+    const oldCoverImageUrl = user.coverImage
+
+    user.coverImage = coverImage.url
+    await user.save({ validateBeforeSave: false })
+
+    if (oldCoverImageUrl) {
+        const oldCoverImagePublicId = oldCoverImageUrl.split('/').pop().split('.')[0]
+        await deleteFromCloudinary(oldCoverImagePublicId)
+    }
+
+    const updatedUser = User.findById(req.user._id).select("-password")
 
     return res
         .status(200)
-        .json(new apiResponse(200, user, "Cover image updated successfully"))
+        .json(new apiResponse(200, updatedUser, "Cover image updated successfully"))
 })
 
 export {
