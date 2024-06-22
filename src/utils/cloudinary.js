@@ -1,6 +1,6 @@
 import { v2 as cloudinary } from "cloudinary"
 import { promises as fs } from "fs"
-import { apiError } from "./apiError";
+import { apiError } from "./apiError.js";
 
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,

@@ -4,12 +4,16 @@ import { User } from "../models/user.models.js"
 import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js"
 import { apiResponse } from "../utils/apiResponse.js"
 import jwt from "jsonwebtoken"
-import { subscription } from "../models/subscription.models.js";
 import mongoose from "mongoose";
 
 const generateAccessAndRefreshTokens = async (userId) => {
     try {
-        const user = await User.findOne(userId)
+        const user = await User.findById(userId)
+
+        if (!user) {
+            throw new apiError(404, "User not found");
+        }
+
         const accessToken = user.generateAccessToken()
         const refreshToken = user.generateRefreshToken()
 
@@ -34,7 +38,6 @@ const registerUser = asyncHandler(async (req, res) => {
     // return response
 
     const { fullName, email, username, password } = req.body
-    // console.log("email: ", email);
 
     if (
         [fullName, email, username, password].some((field) => field?.trim() === "")
@@ -150,7 +153,7 @@ const logoutUser = asyncHandler(async (req, res) => {
     await User.findByIdAndUpdate(
         req.user._id,
         {
-            $set: { refreshToken: undefined }
+            $unset: { refreshToken: 1 }
         },
         {
             new: true
@@ -182,10 +185,12 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         throw new apiError(401, "unauthorized request")
     }
 
-    const decodedToken = jwt.verify(
-        incomingRefreshToken,
-        process.env.REFRESH_TOKEN_SECRET
-    )
+    let decodedToken;
+    try {
+        decodedToken = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET);
+    } catch (err) {
+        throw new apiError(401, "Invalid refresh token");
+    }
 
     const user = await User.findById(decodedToken?._id)
 
@@ -202,16 +207,16 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         secure: true
     }
 
-    const { accessToken, newRefreshToken } = await generateAccessAndRefreshTokens(user._id)
+    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(user._id)
 
     return res
         .status(200)
         .cookie("accessToken", accessToken, options)
-        .cookie("refreshToken", newRefreshToken, options)
+        .cookie("refreshToken", refreshToken, options)
         .json(
             new apiResponse(
                 200,
-                { accessToken, refreshToken: newRefreshToken },
+                { accessToken, refreshToken },
                 "Access token refreshed"
             )
         )
@@ -220,16 +225,16 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 const changeCurrentPassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword, confirmPassword } = req.body
 
-    if (newPassword !== confirmPassword) {
-        throw new apiError(400, "Passwords are not matching")
-    }
-
     const user = await User.findById(req.user._id)
 
     const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
 
     if (!isPasswordCorrect) {
         throw new apiError(400, "Invalid old password")
+    }
+
+    if (newPassword !== confirmPassword) {
+        throw new apiError(400, "Passwords are not matching")
     }
 
     user.password = newPassword
@@ -254,20 +259,25 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 const updateAccountDetails = asyncHandler(async (req, res) => {
     const { fullName, email, username } = req.body
 
-    if (!(fullName || email || username)) {
+    if (!fullName && !email && !username) {
         throw new apiError(400, "Atleast one field is required for change")
     }
 
-    const user = User.findByIdAndUpdate(
+    const user = await User.findByIdAndUpdate(
         req.user?._id,
         {
             $set: {
-                fullName,
-                email
+                ...(fullName && {fullName}),
+                ...(username && {username}),
+                ...(email && {email})
             }
         },
         { new: true }
     ).select("-password")
+
+     if (!user) {
+        throw new apiError(404, "User not found");
+    }
 
     return res
         .status(200)
@@ -307,7 +317,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 
     return res
         .status(200)
-        .json(new apiResponse(200, updateUserAvatar, "Avatar updated successfully"))
+        .json(new apiResponse(200, updatedUser, "Avatar updated successfully"))
 })
 
 const updateUserCoverImage = asyncHandler(async (req, res) => {
@@ -325,6 +335,10 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
 
     const user = await User.findById(req.user._id)
 
+    if (!user) {
+        throw new apiError(404, "User not found")
+    }
+
     const oldCoverImageUrl = user.coverImage
 
     user.coverImage = coverImage.url
@@ -335,7 +349,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         await deleteFromCloudinary(oldCoverImagePublicId)
     }
 
-    const updatedUser = User.findById(req.user._id).select("-password")
+    const updatedUser = await User.findById(req.user._id).select("-password")
 
     return res
         .status(200)
@@ -413,6 +427,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
 })
 
 const getWatchHistory = asyncHandler(async (req, res) => {
+    
     const user = await User.aggregate([
         {
             $match: {
@@ -434,7 +449,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
                             as: "owner",
                             pipeline: [
                                 {
-                                    project: {
+                                    $project: {
                                         fullName: 1,
                                         username: 1,
                                         avatar: 1
