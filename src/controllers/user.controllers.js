@@ -116,7 +116,7 @@ const loginUser = asyncHandler(async (req, res) => {
     })
 
     if (!user) {
-        throw apiError(404, "user does not exist")
+        throw new apiError(404, "user does not exist")
     }
 
     const isPasswordValid = await user.isPasswordCorrect(password)
@@ -311,7 +311,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 
     if (oldAvatarUrl) {
         const oldAvatarPublicId = oldAvatarUrl.split('/').pop().split('.')[0]
-        await deleteFromCloudinary(oldAvatarPublicId)
+        await deleteFromCloudinary(oldAvatarPublicId, "image")
     }
 
     const updatedUser = await User.findById(req.user._id).select("-password")
@@ -347,7 +347,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
 
     if (oldCoverImageUrl) {
         const oldCoverImagePublicId = oldCoverImageUrl.split('/').pop().split('.')[0]
-        await deleteFromCloudinary(oldCoverImagePublicId)
+        await deleteFromCloudinary(oldCoverImagePublicId, "image")
     }
 
     const updatedUser = await User.findById(req.user._id).select("-password")
