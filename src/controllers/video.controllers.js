@@ -52,15 +52,23 @@ const updateVideo = asyncHandler(async (req, res) => {
     const { title, description } = req.body
     const thumbnailLocalPath = req.file?.path
 
-    if (!title && !description && !thumbnailLocalPath) {
-        throw new apiError(400, "Atleast one field is required for update")
+    if (!isValidObjectId(videoId)) {
+        throw new apiError(400, "Invalid video ID");
     }
-
+    
     const video = await Video.findById(videoId)
-
     if (!video) {
         throw new apiError(404, "Video not found")
     }
+
+    if(!video.owner.equals(req.user._id)){
+        throw new apiError(404, "Unauthorized request! You can update only your videos")
+    }
+    
+    if (!title && !description && !thumbnailLocalPath) {
+        throw new apiError(400, "Atleast one field is required for update")
+    }
+    
 
     if (title) video.title = title
     if (description) video.description = description
@@ -93,10 +101,17 @@ const updateVideo = asyncHandler(async (req, res) => {
 const deleteVideo = asyncHandler(async (req, res) => {
     const { videoId } = req.params
 
-    const video = await Video.findById(videoId)
+    if (!isValidObjectId(videoId)) {
+        throw new apiError(400, "Invalid video ID");
+    }
 
+    const video = await Video.findById(videoId)
     if (!video) {
         throw new apiError(404, "Video not found")
+    }
+
+    if(!video.owner.equals(req.user._id)){
+        throw new apiError(404, "Unauthorized request! You can delete only your videos")
     }
 
     if (video.thumbnail) {
@@ -117,10 +132,17 @@ const deleteVideo = asyncHandler(async (req, res) => {
 const getVideoById = asyncHandler(async (req, res) => {
     const { videoId } = req.params
 
-    const video = await Video.findById(videoId)
+    if (!isValidObjectId(videoId)) {
+        throw new apiError(400, "Invalid video ID");
+    }
 
+    const video = await Video.findById(videoId)
     if (!video) {
         throw new apiError(404, "Video not found")
+    }
+
+    if(!video.isPublished){
+        throw new apiError(400, "Video is no longer available")
     }
 
     video.views = video.views + 1
@@ -143,15 +165,10 @@ const getAllVideos = asyncHandler(async (req, res) => {
         filter.title = { $regex: query, $options: 'i' }
     }
     if (userId) {
-        filter.owner = userId
+        filter.owner = new mongoose.Types.ObjectId(userId)
     }
 
-    let sort = {}
-    if (sortBy && sortType) {
-        sort[sortBy] = sortType === "desc" ? -1 : 1
-    }
-
-    const videos = await Video.aggregate([
+    const aggregationPipeline = [
         { $match: filter },
         {
             $lookup: {
@@ -182,8 +199,15 @@ const getAllVideos = asyncHandler(async (req, res) => {
         },
         { $skip: skip },
         { $limit: limitInt },
-        { $sort: sort }
-    ])
+    ]
+
+    let sort = {}
+    if (sortBy) {   
+        sort[sortBy] = sortType === "desc" ? -1 : 1
+        aggregationPipeline.push({$sort: sort})
+    }
+
+    const videos = await Video.aggregate(aggregationPipeline)
 
     return res
         .status(200)
@@ -193,6 +217,10 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
 const togglePublishStatus = asyncHandler(async (req, res) => {
     const { videoId } = req.params
+
+    if (!isValidObjectId(videoId)) {
+        throw new apiError(400, "Invalid video ID");
+    }
 
     const video = await Video.findById(videoId)
 
@@ -207,21 +235,6 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
         .status(200)
         .json(new apiResponse(200, video, "Video publish status changed successfully"))
 })
-
-/*
-const viewVideo = asyncHandler(async (req, res) => {
-    const {videoId} = req.params
-
-    const video = await Video.findById(videoId)
-
-    if(!video){
-        throw new apiError(404, "video not found")
-    }
-
-    video.views = video.views + 1
-    video.save() 
-})
-*/
 
 export {
     publishVideo,
