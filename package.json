@@ -14,7 +14,7 @@
   "author": "Yashh",
   "license": "ISC",
   "devDependencies": {
-    "nodemon": "^3.1.0",
+    "nodemon": "^3.1.4",
     "prettier": "^3.2.5"
   },
   "dependencies": {
