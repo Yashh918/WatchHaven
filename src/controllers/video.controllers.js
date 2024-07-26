@@ -1,5 +1,5 @@
 import mongoose, { isValidObjectId } from "mongoose";
-import { asyncHandler } from "../utils/asyncHandler.js"; ``
+import { asyncHandler } from "../utils/asyncHandler.js";
 import { apiResponse } from "../utils/apiResponse.js";
 import { apiError } from "../utils/apiError.js";
 import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js"
@@ -35,6 +35,7 @@ const publishVideo = asyncHandler(async (req, res) => {
         title,
         description,
         owner: owner._id,
+        username: owner.username,
         views,
         duration,
         isPublished,

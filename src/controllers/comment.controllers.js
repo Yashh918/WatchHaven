@@ -10,6 +10,8 @@ const createVideoComment = asyncHandler(async (req, res) => {
     const { videoId } = req.params
     const { content } = req.body
 
+    const owner = req.user
+
     if (!isValidObjectId(videoId)) {
         throw new apiError(404, "Invalid videoId")
     }
@@ -24,7 +26,8 @@ const createVideoComment = asyncHandler(async (req, res) => {
     }
 
     const comment = await Comment.create({
-        owner: req.user._id,
+        owner: owner._id,
+        username: owner.username,
         video: video._id,
         content: content.trim()
     })

@@ -6,6 +6,9 @@ const commentSchema = new Schema({
         type: Schema.Types.ObjectId
         , ref: "User"
     }
+    , username: {
+        type: String
+    }
     , video: {
         type: Schema.Types.ObjectId
         , ref: "Video"

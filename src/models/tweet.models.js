@@ -6,6 +6,9 @@ const tweetSchema = new Schema({
         type: Schema.Types.ObjectId
         , ref: "User"
     }
+    , username: {
+        type: String
+    }
     , content: {
         type: String
         , required: true

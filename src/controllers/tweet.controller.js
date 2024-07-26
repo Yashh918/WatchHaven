@@ -26,6 +26,7 @@ const createTweet = asyncHandler(async (req, res) => {
 
     const tweet = await Tweet.create({
         owner: owner._id,
+        username: owner.username,
         content,
         images: newImages
     })
