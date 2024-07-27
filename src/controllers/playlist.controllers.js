@@ -50,6 +50,26 @@ const getPlayListById = asyncHandler(async (req, res) => {
         foreignField: '_id',
         as: 'videos'
       }
+    },
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'owner',
+        foreignField: '_id',
+        as: 'ownerDetails'
+      }
+    },
+    {
+      $project: {
+        name: 1,
+        description: 1,
+        videos: 1,
+        ownerDetails: {
+          _id: 1,
+          username: 1,
+          avatar: 1
+        }
+      }
     }
   ])
   if (playlist.length === 0) {

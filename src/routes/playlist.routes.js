@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { verifyJWT } from "../middlewares/auth.middlewares.js";
+import { upload } from "../middlewares/multer.middlewares.js"
 import {
     createPlaylist,
     updatePlaylist,
@@ -16,11 +17,11 @@ router.use(verifyJWT)
 // routes
 router
     .route("/")
-    .post(createPlaylist)
+    .post(upload.none(), createPlaylist)
 router
     .route("/:playlistId")
     .get(getPlayListById)
-    .patch(updatePlaylist)
+    .patch(upload.none(), updatePlaylist)
     .delete(deletePlaylist)
 router
     .route("/:playlistId/video/:videoId")
