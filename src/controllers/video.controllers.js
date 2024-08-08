@@ -4,6 +4,7 @@ import { apiResponse } from "../utils/apiResponse.js";
 import { apiError } from "../utils/apiError.js";
 import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js"
 import { Video } from "../models/video.models.js"
+import { Like } from "../models/like.models.js";
 
 const publishVideo = asyncHandler(async (req, res) => {
     const { title, description } = req.body
@@ -28,6 +29,7 @@ const publishVideo = asyncHandler(async (req, res) => {
     const thumbnail = await uploadOnCloudinary(thumbnailLocalPath)
 
     let views
+    let likes
     let isPublished
     const duration = videoFile.duration
 
@@ -37,6 +39,7 @@ const publishVideo = asyncHandler(async (req, res) => {
         owner: owner._id,
         username: owner.username,
         views,
+        likes,
         duration,
         isPublished,
         videoFile: videoFile.url,
@@ -56,20 +59,20 @@ const updateVideo = asyncHandler(async (req, res) => {
     if (!isValidObjectId(videoId)) {
         throw new apiError(400, "Invalid video ID");
     }
-    
+
     const video = await Video.findById(videoId)
     if (!video) {
         throw new apiError(404, "Video not found")
     }
 
-    if(!video.owner.equals(req.user._id)){
+    if (!video.owner.equals(req.user._id)) {
         throw new apiError(404, "Unauthorized request! You can update only your videos")
     }
-    
+
     if (!title && !description && !thumbnailLocalPath) {
         throw new apiError(400, "Atleast one field is required for update")
     }
-    
+
 
     if (title) video.title = title
     if (description) video.description = description
@@ -111,7 +114,7 @@ const deleteVideo = asyncHandler(async (req, res) => {
         throw new apiError(404, "Video not found")
     }
 
-    if(!video.owner.equals(req.user._id)){
+    if (!video.owner.equals(req.user._id)) {
         throw new apiError(404, "Unauthorized request! You can delete only your videos")
     }
 
@@ -137,17 +140,57 @@ const getVideoById = asyncHandler(async (req, res) => {
         throw new apiError(400, "Invalid video ID");
     }
 
-    const video = await Video.findById(videoId)
-    if (!video) {
+    const videoAggregation = await Video.aggregate([
+        {
+            $match: {
+                _id: new mongoose.Types.ObjectId(videoId)
+            }
+        },
+        {
+            $lookup: {
+                from: "likes",
+                localField: "_id",
+                foreignField: "video",
+                as: "likes"
+            }
+        },
+        {
+            $addFields: {
+                likes: { $size: "$likes" }
+            }
+        },
+        {
+            $project: {
+                videoFile: 1,
+                thumbnail: 1,
+                title: 1,
+                description: 1,
+                duration: 1,
+                views: 1,
+                likes: 1,
+                isPublished: 1,
+                owner: 1,
+                username: 1,
+                createdAt: 1,
+                updatedAt: 1
+            }
+        }
+    ])
+
+    if (videoAggregation.length === 0) {
         throw new apiError(404, "Video not found")
     }
 
-    if(!video.isPublished){
-        throw new apiError(400, "Video is no longer available")
-    }
+    const video = videoAggregation[0]
 
-    video.views = video.views + 1
-    video.save()
+    await Video.updateOne(
+        { _id: video._id },
+        {
+            $inc: {
+                views: 1
+            }
+        }
+    )
 
     return res
         .status(200)
@@ -203,9 +246,9 @@ const getAllVideos = asyncHandler(async (req, res) => {
     ]
 
     let sort = {}
-    if (sortBy) {   
+    if (sortBy) {
         sort[sortBy] = sortType === "desc" ? -1 : 1
-        aggregationPipeline.push({$sort: sort})
+        aggregationPipeline.push({ $sort: sort })
     }
 
     const videos = await Video.aggregate(aggregationPipeline)

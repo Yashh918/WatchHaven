@@ -11,6 +11,7 @@ const createVideoComment = asyncHandler(async (req, res) => {
     const { content } = req.body
 
     const owner = req.user
+    let likes
 
     if (!isValidObjectId(videoId)) {
         throw new apiError(404, "Invalid videoId")
@@ -29,7 +30,8 @@ const createVideoComment = asyncHandler(async (req, res) => {
         owner: owner._id,
         username: owner.username,
         video: video._id,
-        content: content.trim()
+        content: content.trim(),
+        likes
     })
 
     return res
@@ -40,6 +42,8 @@ const createVideoComment = asyncHandler(async (req, res) => {
 const createTweetComment = asyncHandler(async (req, res) => {
     const { tweetId } = req.params
     const { content } = req.body
+
+    let likes
 
     if (!isValidObjectId(tweetId)) {
         throw new apiError(404, "Invalid tweetId")
@@ -57,7 +61,8 @@ const createTweetComment = asyncHandler(async (req, res) => {
     const comment = await Comment.create({
         owner: req.user._id,
         tweet: tweet._id,
-        content: content.trim()
+        content: content.trim(),
+        likes
     })
 
     return res
@@ -137,6 +142,19 @@ const getVideoComments = asyncHandler(async (req, res) => {
         },
         {
             $lookup: {
+                from: "likes",
+                localField: "_id",
+                foreignField: "comment",
+                as: "likes"
+            }
+        },
+        {
+            $addFields: {
+                likes: { $size: "$likes"}
+            }
+        },
+        {
+            $lookup: {
                 from: "users",
                 localField: "owner",
                 foreignField: "_id",
@@ -153,7 +171,8 @@ const getVideoComments = asyncHandler(async (req, res) => {
                 owner: {
                     username: 1,
                     avatar: 1
-                }
+                },
+                likes: 1
             }
         }
     ])
@@ -184,6 +203,19 @@ const getTweetComments = asyncHandler(async (req, res) => {
         },
         {
             $lookup: {
+                from: "likes",
+                localField: "_id",
+                foreignField: "comment",
+                as: "likes"
+            }
+        },
+        {
+            $addFields: {
+                likes: { $size: "$likes"}
+            }
+        },
+        {
+            $lookup: {
                 from: "users",
                 localField: "owner",
                 foreignField: "_id",
@@ -200,7 +232,8 @@ const getTweetComments = asyncHandler(async (req, res) => {
                 owner: {
                     username: 1,
                     avatar: 1
-                }
+                },
+                likes: 1
             }
         }
     ])

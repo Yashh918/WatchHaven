@@ -2,6 +2,7 @@ import {Router} from "express"
 import {
     createTweet,
     updateTweet,
+    getTweetById,
     deleteTweet,
     getUserTweets
 } from "../controllers/tweet.controller.js"
@@ -17,6 +18,7 @@ router
     .post(upload.array("images"), createTweet)
 router
     .route("/:tweetId")
+    .get(getTweetById)
     .patch(upload.array("images"), updateTweet)
     .delete(deleteTweet)
 router

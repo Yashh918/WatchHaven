@@ -16,6 +16,10 @@ const tweetSchema = new Schema({
     , images: {
         type: [String]
     }
+    , likes: {
+        type: Number
+        , default: 0
+    }
 }, { timestamps: true })
 
 tweetSchema.plugin(mongooseAggregatePaginate)

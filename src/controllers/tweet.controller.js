@@ -9,6 +9,7 @@ import { User } from "../models/user.models.js";
 const createTweet = asyncHandler(async (req, res) => {
     const {content} = req.body
     const owner = req.user
+    let likes
     
     if(!content) {
         throw new apiError(400, "content can not be empty")
@@ -27,6 +28,7 @@ const createTweet = asyncHandler(async (req, res) => {
     const tweet = await Tweet.create({
         owner: owner._id,
         username: owner.username,
+        likes,
         content,
         images: newImages
     })
@@ -38,7 +40,6 @@ const createTweet = asyncHandler(async (req, res) => {
         .json(new apiResponse(200, tweet, "tweet created successfully"  ))
 })
 
-// postman
 const updateTweet = asyncHandler(async (req, res) => {
     const {tweetId} = req.params
     const {content, deleteImages = []} = req.body
@@ -48,12 +49,12 @@ const updateTweet = asyncHandler(async (req, res) => {
     }
 
     if(!isValidObjectId(tweetId)){
-        throw new apiError(404, "tweet not found")
+        throw new apiError(404, "Tweet not found")
     }
 
     const tweet = await Tweet.findById(tweetId)
     if(!tweet){
-        throw new apiError(404, "tweet not found")
+        throw new apiError(404, "Tweet not found")
     }
 
     if(!tweet.owner.equals(req.user._id)){
@@ -97,6 +98,53 @@ const updateTweet = asyncHandler(async (req, res) => {
         .status(200)
         .json(new apiResponse(200, tweet, "tweet updated successfully"))
 
+})
+
+const getTweetById = asyncHandler(async (req, res) => {
+    const {tweetId} = req.params
+
+    if(!isValidObjectId(tweetId)){
+        throw new apiError(404, "Tweet not found")
+    }
+
+    const tweetAggregation = await Tweet.aggregate([
+        {
+            $match: {
+                _id: new mongoose.Types.ObjectId(tweetId)
+            }
+        },
+        {
+            $lookup: {
+                from: "likes",
+                localField: "_id",
+                foreignField: "tweet",
+                as: "likes"
+            }
+        },
+        {
+            $addFields: {
+                likes: { $size : "$likes"}
+            }
+        },
+        {
+            $project: {
+                owner: 1,
+                username: 1,
+                content: 1,
+                images: 1,
+                likes: 1
+            }
+        }
+        
+    ])
+
+    if(tweetAggregation.length === 0){
+        throw new apiError(404, "Tweet not found")
+    }
+
+    return res
+        .status(200)
+        .json(new apiResponse(200, tweetAggregation[0], "Tweet fetched successfully"))
 })
 
 const deleteTweet = asyncHandler(async (req, res) => {
@@ -200,5 +248,6 @@ export {
     createTweet,
     updateTweet,
     deleteTweet,
+    getTweetById,
     getUserTweets
 }
