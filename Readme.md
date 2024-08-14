@@ -1,3 +1,3 @@
-# chai aur backend series
+# WatchHaven - Video Sharing Platform
 
-Creating a backend project through a video series with chai aur backend
+Developed the back-end for a comprehensive video sharing platform with features like login, sign-up, upload video, like, dislike, comment, reply, subscribe, unsubscribe, and many more.
